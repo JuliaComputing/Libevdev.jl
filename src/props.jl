@@ -32,7 +32,7 @@ The name as a `String`, or `nothing` if the device has no name set.
 """
 function name(dev::EvdevDevice)
     return lock(dev.lock) do
-        _cstring_or_nothing(LibEvdev.libevdev_get_name(dev))
+        _cstring_or_nothing(LibevdevRaw.libevdev_get_name(dev))
     end
 end
 
@@ -47,7 +47,7 @@ The location as a `String`, or `nothing` if unset.
 """
 function phys(dev::EvdevDevice)
     return lock(dev.lock) do
-        _cstring_or_nothing(LibEvdev.libevdev_get_phys(dev))
+        _cstring_or_nothing(LibevdevRaw.libevdev_get_phys(dev))
     end
 end
 
@@ -58,7 +58,7 @@ Unique identifier reported by the device (often empty / `nothing`).
 """
 function uniq(dev::EvdevDevice)
     return lock(dev.lock) do
-        _cstring_or_nothing(LibEvdev.libevdev_get_uniq(dev))
+        _cstring_or_nothing(LibevdevRaw.libevdev_get_uniq(dev))
     end
 end
 
@@ -68,7 +68,7 @@ end
 USB / PCI vendor ID.
 """
 vendor_id(dev::EvdevDevice) = lock(dev.lock) do
-    Int(LibEvdev.libevdev_get_id_vendor(dev))
+    Int(LibevdevRaw.libevdev_get_id_vendor(dev))
 end
 
 """
@@ -77,7 +77,7 @@ end
 USB / PCI product ID.
 """
 product_id(dev::EvdevDevice) = lock(dev.lock) do
-    Int(LibEvdev.libevdev_get_id_product(dev))
+    Int(LibevdevRaw.libevdev_get_id_product(dev))
 end
 
 """
@@ -87,7 +87,7 @@ Bus type identifier. One of the kernel `BUS_*` constants from
 `<linux/input.h>` (e.g. `BUS_USB = 3`, `BUS_PCI = 1`).
 """
 bustype(dev::EvdevDevice) = lock(dev.lock) do
-    Int(LibEvdev.libevdev_get_id_bustype(dev))
+    Int(LibevdevRaw.libevdev_get_id_bustype(dev))
 end
 
 """
@@ -96,7 +96,7 @@ end
 Device firmware/protocol version reported by the driver.
 """
 version(dev::EvdevDevice) = lock(dev.lock) do
-    Int(LibEvdev.libevdev_get_id_version(dev))
+    Int(LibevdevRaw.libevdev_get_id_version(dev))
 end
 
 """
@@ -105,7 +105,7 @@ end
 Input subsystem protocol version (`EVIOCGVERSION`).
 """
 driver_version(dev::EvdevDevice) = lock(dev.lock) do
-    Int(LibEvdev.libevdev_get_driver_version(dev))
+    Int(LibevdevRaw.libevdev_get_driver_version(dev))
 end
 
 """
@@ -125,9 +125,9 @@ Query whether the device advertises the given event class.
 function has_event(dev::EvdevDevice, type::Integer, code::Integer=-1)
     return lock(dev.lock) do
         if code < 0
-            LibEvdev.libevdev_has_event_type(dev, Cuint(type)) != 0
+            LibevdevRaw.libevdev_has_event_type(dev, Cuint(type)) != 0
         else
-            LibEvdev.libevdev_has_event_code(dev, Cuint(type), Cuint(code)) != 0
+            LibevdevRaw.libevdev_has_event_code(dev, Cuint(type), Cuint(code)) != 0
         end
     end
 end
@@ -140,7 +140,7 @@ from `<linux/input-event-codes.h>`).
 """
 function has_property(dev::EvdevDevice, prop::Integer)
     return lock(dev.lock) do
-        LibEvdev.libevdev_has_property(dev, Cuint(prop)) != 0
+        LibevdevRaw.libevdev_has_property(dev, Cuint(prop)) != 0
     end
 end
 
@@ -155,7 +155,7 @@ this process is the sole receiver of events from the device.
 """
 function grab(dev::EvdevDevice)
     lock(dev.lock) do
-        check(LibEvdev.libevdev_grab(dev, LibEvdev.LIBEVDEV_GRAB), "libevdev_grab")
+        check(LibevdevRaw.libevdev_grab(dev, LibevdevRaw.LIBEVDEV_GRAB), "libevdev_grab")
     end
     return nothing
 end
@@ -167,7 +167,7 @@ Release a prior [`grab`](@ref).
 """
 function ungrab(dev::EvdevDevice)
     lock(dev.lock) do
-        check(LibEvdev.libevdev_grab(dev, LibEvdev.LIBEVDEV_UNGRAB),
+        check(LibevdevRaw.libevdev_grab(dev, LibevdevRaw.LIBEVDEV_UNGRAB),
               "libevdev_grab(UNGRAB)")
     end
     return nothing
@@ -188,7 +188,7 @@ A `NamedTuple` with fields `minimum`, `maximum`, `fuzz`, `flat`,
 """
 function abs_info(dev::EvdevDevice, code::Integer)
     return lock(dev.lock) do
-        p = LibEvdev.libevdev_get_abs_info(dev, Cuint(code))
+        p = LibevdevRaw.libevdev_get_abs_info(dev, Cuint(code))
         if p == C_NULL
             throw(EvdevError(Int32(Libc.ENOENT), "libevdev_get_abs_info(code=$code)"))
         end
@@ -219,7 +219,7 @@ Set the device name (the string returned by [`name`](@ref)).
 """
 function set_name!(dev::EvdevDevice, name::AbstractString)
     lock(dev.lock) do
-        LibEvdev.libevdev_set_name(dev, name)
+        LibevdevRaw.libevdev_set_name(dev, name)
     end
     return nothing
 end
@@ -231,7 +231,7 @@ Set the device's physical-location string.
 """
 function set_phys!(dev::EvdevDevice, phys::AbstractString)
     lock(dev.lock) do
-        LibEvdev.libevdev_set_phys(dev, phys)
+        LibevdevRaw.libevdev_set_phys(dev, phys)
     end
     return nothing
 end
@@ -243,7 +243,7 @@ Set the device's unique-identifier string.
 """
 function set_uniq!(dev::EvdevDevice, uniq::AbstractString)
     lock(dev.lock) do
-        LibEvdev.libevdev_set_uniq(dev, uniq)
+        LibevdevRaw.libevdev_set_uniq(dev, uniq)
     end
     return nothing
 end
@@ -255,7 +255,7 @@ Set the device's USB / PCI vendor ID.
 """
 function set_vendor_id!(dev::EvdevDevice, vendor::Integer)
     lock(dev.lock) do
-        LibEvdev.libevdev_set_id_vendor(dev, Cint(vendor))
+        LibevdevRaw.libevdev_set_id_vendor(dev, Cint(vendor))
     end
     return nothing
 end
@@ -267,7 +267,7 @@ Set the device's USB / PCI product ID.
 """
 function set_product_id!(dev::EvdevDevice, product::Integer)
     lock(dev.lock) do
-        LibEvdev.libevdev_set_id_product(dev, Cint(product))
+        LibevdevRaw.libevdev_set_id_product(dev, Cint(product))
     end
     return nothing
 end
@@ -279,7 +279,7 @@ Set the device's bus type — one of the `BUS_*` constants.
 """
 function set_bustype!(dev::EvdevDevice, bustype::Integer)
     lock(dev.lock) do
-        LibEvdev.libevdev_set_id_bustype(dev, Cint(bustype))
+        LibevdevRaw.libevdev_set_id_bustype(dev, Cint(bustype))
     end
     return nothing
 end
@@ -291,7 +291,7 @@ Set the device's firmware/protocol version identifier.
 """
 function set_version!(dev::EvdevDevice, version::Integer)
     lock(dev.lock) do
-        LibEvdev.libevdev_set_id_version(dev, Cint(version))
+        LibevdevRaw.libevdev_set_id_version(dev, Cint(version))
     end
     return nothing
 end
@@ -322,20 +322,20 @@ function enable_event!(dev::EvdevDevice, type::Integer, code::Integer=-1;
                         resolution::Integer=0)
     lock(dev.lock) do
         if code < 0
-            check(LibEvdev.libevdev_enable_event_type(dev, Cuint(type)),
+            check(LibevdevRaw.libevdev_enable_event_type(dev, Cuint(type)),
                   "libevdev_enable_event_type")
         elseif minimum !== nothing && maximum !== nothing
             info = input_absinfo(Int32(0), Int32(minimum), Int32(maximum),
                                   Int32(fuzz), Int32(flat), Int32(resolution))
             ref = Ref(info)
             GC.@preserve ref begin
-                check(LibEvdev.libevdev_enable_event_code(dev, Cuint(type),
+                check(LibevdevRaw.libevdev_enable_event_code(dev, Cuint(type),
                             Cuint(code),
                             Base.unsafe_convert(Ptr{input_absinfo}, ref)),
                       "libevdev_enable_event_code")
             end
         else
-            check(LibEvdev.libevdev_enable_event_code(dev, Cuint(type),
+            check(LibevdevRaw.libevdev_enable_event_code(dev, Cuint(type),
                                                       Cuint(code), C_NULL),
                   "libevdev_enable_event_code")
         end
@@ -352,10 +352,10 @@ Mirror of [`enable_event!`](@ref).
 function disable_event!(dev::EvdevDevice, type::Integer, code::Integer=-1)
     lock(dev.lock) do
         if code < 0
-            check(LibEvdev.libevdev_disable_event_type(dev, Cuint(type)),
+            check(LibevdevRaw.libevdev_disable_event_type(dev, Cuint(type)),
                   "libevdev_disable_event_type")
         else
-            check(LibEvdev.libevdev_disable_event_code(dev, Cuint(type),
+            check(LibevdevRaw.libevdev_disable_event_code(dev, Cuint(type),
                                                        Cuint(code)),
                   "libevdev_disable_event_code")
         end
@@ -373,7 +373,7 @@ Set one of the `INPUT_PROP_*` capability flags on `dev`.
 """
 function enable_property!(dev::EvdevDevice, prop::Integer)
     lock(dev.lock) do
-        check(LibEvdev.libevdev_enable_property(dev, Cuint(prop)),
+        check(LibevdevRaw.libevdev_enable_property(dev, Cuint(prop)),
               "libevdev_enable_property")
     end
     return nothing
@@ -389,7 +389,7 @@ Unset one of the `INPUT_PROP_*` capability flags on `dev`.
 """
 function disable_property!(dev::EvdevDevice, prop::Integer)
     lock(dev.lock) do
-        check(LibEvdev.libevdev_disable_property(dev, Cuint(prop)),
+        check(LibevdevRaw.libevdev_disable_property(dev, Cuint(prop)),
               "libevdev_disable_property")
     end
     return nothing
@@ -423,7 +423,7 @@ function set_abs_info!(dev::EvdevDevice, code::Integer;
     ref = Ref(info)
     lock(dev.lock) do
         GC.@preserve ref begin
-            LibEvdev.libevdev_set_abs_info(dev, Cuint(code),
+            LibevdevRaw.libevdev_set_abs_info(dev, Cuint(code),
                                             Base.unsafe_convert(Ptr{input_absinfo}, ref))
         end
     end

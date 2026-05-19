@@ -1,4 +1,4 @@
-module LibEvdev
+module LibevdevRaw
 
 using libevdev_jll
 export libevdev_jll

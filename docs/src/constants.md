@@ -1,17 +1,17 @@
 # Kernel constants
 
 ```@meta
-CurrentModule = Libev
+CurrentModule = Libevdev
 ```
 
-`using Libev` brings the Linux input event-code constants into scope.
+`using Libevdev` brings the Linux input event-code constants into scope.
 A small parser produces them at precompile time directly from
 `linux/input-event-codes.h` and `linux/input.h`, and they regenerate
 automatically on the next precompile after a kernel-headers upgrade.
 
 ## How they're produced
 
-At precompile time `Libev` reads two kernel headers:
+At precompile time `Libevdev` reads two kernel headers:
 
 - `linux/input-event-codes.h` — the bulk of event-related constants.
 - `linux/input.h` — force-feedback effects, multi-touch tool types,
@@ -19,7 +19,7 @@ At precompile time `Libev` reads two kernel headers:
 
 Each header is resolved independently by checking, in order:
 
-1. `$JULIA_LIBEV_KERNEL_HEADERS/<header>` — the environment-variable
+1. `$JULIA_LIBEVDEV_KERNEL_HEADERS/<header>` — the environment-variable
    override (see [Customizing the header source](#customizing-the-header-source)).
 2. `/usr/include/linux/<header>` — the standard system path.
 3. `/usr/include/x86_64-linux-gnu/linux/<header>` — the multiarch
@@ -28,7 +28,7 @@ Each header is resolved independently by checking, in order:
 
 The parser then walks each header line-by-line, matches
 `#define NAME EXPR` lines whose name starts with one of the wrapper's
-prefix list, and emits `const NAME = EXPR` in the `Libev` module.
+prefix list, and emits `const NAME = EXPR` in the `Libevdev` module.
 `EXPR` covers everything `Meta.parse` accepts: integer literals, hex
 literals, simple arithmetic, or aliases to earlier names. The same
 regex naturally skips function-like macros, `_IOR`/`_IOW` ioctl macros,
@@ -83,15 +83,15 @@ axis(tracker, ABS_X)                     # current X value
 ## Customizing the header source
 
 To use headers from a custom kernel tree, set
-`JULIA_LIBEV_KERNEL_HEADERS` to a directory containing
+`JULIA_LIBEVDEV_KERNEL_HEADERS` to a directory containing
 `input-event-codes.h` and `input.h`:
 
 ```sh
-JULIA_LIBEV_KERNEL_HEADERS=/path/to/my/linux-headers/include/linux \
+JULIA_LIBEVDEV_KERNEL_HEADERS=/path/to/my/linux-headers/include/linux \
     julia --project -e 'using Pkg; Pkg.precompile(strict=true)'
 ```
 
-Libev pulls each header from this directory, then the system path,
+Libevdev pulls each header from this directory, then the system path,
 then the multiarch system path, then the bundled `deps/` copy — see
 the full search order above. Each header is resolved against the chain
 independently, so an override directory containing one of the two
@@ -100,5 +100,5 @@ or `deps/`.
 
 Precompile caches must be manually invalidated when the environment
 variable changes. After setting or modifying
-`JULIA_LIBEV_KERNEL_HEADERS`, force a rebuild with
-`Pkg.precompile(strict=true)` or delete `~/.julia/compiled/v*/Libev`.
+`JULIA_LIBEVDEV_KERNEL_HEADERS`, force a rebuild with
+`Pkg.precompile(strict=true)` or delete `~/.julia/compiled/v*/Libevdev`.

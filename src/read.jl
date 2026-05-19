@@ -45,13 +45,13 @@ function read_event(dev::EvdevDevice; block::Bool=true)
     while true
         isopen(dev) || return nothing
         status = lock(dev.lock) do
-            ccall((:libevdev_next_event, LibEvdev.libevdev),
-                  Cint, (Ptr{LibEvdev.libevdev}, Cuint, Ptr{InputEvent}),
-                  dev, UInt32(LibEvdev.LIBEVDEV_READ_FLAG_NORMAL), ev_ref)
+            ccall((:libevdev_next_event, LibevdevRaw.libevdev),
+                  Cint, (Ptr{LibevdevRaw.libevdev}, Cuint, Ptr{InputEvent}),
+                  dev, UInt32(LibevdevRaw.LIBEVDEV_READ_FLAG_NORMAL), ev_ref)
         end
-        if status == Int(LibEvdev.LIBEVDEV_READ_STATUS_SUCCESS)
+        if status == Int(LibevdevRaw.LIBEVDEV_READ_STATUS_SUCCESS)
             return ev_ref[]
-        elseif status == Int(LibEvdev.LIBEVDEV_READ_STATUS_SYNC)
+        elseif status == Int(LibevdevRaw.LIBEVDEV_READ_STATUS_SYNC)
             # SYN_DROPPED notice. The event itself is the EV_SYN/SYN_DROPPED
             # marker; the iterator wrapper recognizes it and switches into
             # SYNC drain mode on the next call.
@@ -129,13 +129,13 @@ function Base.iterate(it::EventIterator, state::Symbol=:normal)
             while true
                 isopen(dev) || return nothing
                 status = lock(dev.lock) do
-                    ccall((:libevdev_next_event, LibEvdev.libevdev),
-                          Cint, (Ptr{LibEvdev.libevdev}, Cuint, Ptr{InputEvent}),
-                          dev, UInt32(LibEvdev.LIBEVDEV_READ_FLAG_SYNC), ev_ref)
+                    ccall((:libevdev_next_event, LibevdevRaw.libevdev),
+                          Cint, (Ptr{LibevdevRaw.libevdev}, Cuint, Ptr{InputEvent}),
+                          dev, UInt32(LibevdevRaw.LIBEVDEV_READ_FLAG_SYNC), ev_ref)
                 end
-                if status == Int(LibEvdev.LIBEVDEV_READ_STATUS_SUCCESS)
+                if status == Int(LibevdevRaw.LIBEVDEV_READ_STATUS_SUCCESS)
                     return (ev_ref[], :sync)
-                elseif status == Int(LibEvdev.LIBEVDEV_READ_STATUS_SYNC)
+                elseif status == Int(LibevdevRaw.LIBEVDEV_READ_STATUS_SYNC)
                     # Another sync boundary mid-stream; keep draining.
                     return (ev_ref[], :sync)
                 elseif status == -_EAGAIN

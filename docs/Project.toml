@@ -1,6 +1,6 @@
 [deps]
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
-Libev = "16d368ef-f5da-4971-84d3-b8145f955bda"
+Libevdev = "16d368ef-f5da-4971-84d3-b8145f955bda"
 
 [compat]
 Documenter = "1"

@@ -29,20 +29,20 @@ const _KERNEL_HEADERS = (
 )
 
 """
-Name of the environment variable users can set to override where Libev
+Name of the environment variable users can set to override where Libevdev
 looks for the kernel input headers. The value is a directory
-containing both `input-event-codes.h` and `input.h`. Libev pulls each
+containing both `input-event-codes.h` and `input.h`. Libevdev pulls each
 header from this directory first, then the system path, then the
 multiarch system path, then the bundled `deps/` copy.
 
 Precompile caches must be manually invalidated when this variable
 changes — `Pkg.precompile(strict=true)` or
-`rm ~/.julia/compiled/v*/Libev`.
+`rm ~/.julia/compiled/v*/Libevdev`.
 """
-const _ENV_OVERRIDE = "JULIA_LIBEV_KERNEL_HEADERS"
+const _ENV_OVERRIDE = "JULIA_LIBEVDEV_KERNEL_HEADERS"
 
 # Resolve each kernel input header by checking, in order:
-#   1. $JULIA_LIBEV_KERNEL_HEADERS/<rel>   — user override
+#   1. $JULIA_LIBEVDEV_KERNEL_HEADERS/<rel>   — user override
 #   2. /usr/include/linux/<rel>            — system path
 #   3. /usr/include/x86_64-linux-gnu/linux/<rel> — multiarch system path
 #   4. deps/<fallback>                     — package-bundled copy

@@ -1,4 +1,4 @@
-# Core value types and error handling. No LibEvdev dependency — safe to
+# Core value types and error handling. No LibevdevRaw dependency — safe to
 # load standalone.
 
 """

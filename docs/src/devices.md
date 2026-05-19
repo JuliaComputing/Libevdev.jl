@@ -1,7 +1,7 @@
 # Devices
 
 ```@meta
-CurrentModule = Libev
+CurrentModule = Libevdev
 ```
 
 The [`EvdevDevice`](@ref) type is the central handle: it owns a libevdev

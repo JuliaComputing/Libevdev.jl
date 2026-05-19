@@ -1,4 +1,4 @@
-# Libev.jl
+# Libevdev.jl
 
 A Julian wrapper around [libevdev](https://www.freedesktop.org/wiki/Software/libevdev/),
 the Linux input-device userspace library. Read events from real input
@@ -10,7 +10,7 @@ state from a background task.
 Read keyboard events:
 
 ```julia
-using Libev
+using Libevdev
 
 open(EvdevDevice, "/dev/input/event3") do dev
     @info "device" name=name(dev) vendor=vendor_id(dev) product=product_id(dev)

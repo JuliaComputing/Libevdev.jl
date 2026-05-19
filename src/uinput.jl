@@ -22,7 +22,7 @@ finalizer waits for the next collection.
 - Discover the kernel-assigned paths: [`syspath`](@ref), [`devnode`](@ref).
 """
 mutable struct UinputDevice
-    ptr::Ptr{LibEvdev.libevdev_uinput}
+    ptr::Ptr{LibevdevRaw.libevdev_uinput}
     lock::ReentrantLock
     closed::Bool
 end
@@ -58,12 +58,12 @@ The underlying `/dev/uinput` fd is opened and managed by libevdev
 (`LIBEVDEV_UINPUT_OPEN_MANAGED`) and is closed by [`close`](@ref).
 """
 function UinputDevice(template::EvdevDevice)
-    ref = Ref{Ptr{LibEvdev.libevdev_uinput}}(C_NULL)
+    ref = Ref{Ptr{LibevdevRaw.libevdev_uinput}}(C_NULL)
     rc = lock(template.lock) do
-        ccall((:libevdev_uinput_create_from_device, LibEvdev.libevdev),
+        ccall((:libevdev_uinput_create_from_device, LibevdevRaw.libevdev),
               Cint,
-              (Ptr{LibEvdev.libevdev}, Cint, Ptr{Ptr{LibEvdev.libevdev_uinput}}),
-              template, Cint(LibEvdev.LIBEVDEV_UINPUT_OPEN_MANAGED), ref)
+              (Ptr{LibevdevRaw.libevdev}, Cint, Ptr{Ptr{LibevdevRaw.libevdev_uinput}}),
+              template, Cint(LibevdevRaw.LIBEVDEV_UINPUT_OPEN_MANAGED), ref)
     end
     if rc != 0
         throw(EvdevError(Int32(-rc), "libevdev_uinput_create_from_device"))
@@ -90,8 +90,8 @@ function Base.close(u::UinputDevice)
     p = u.ptr
     u.ptr = C_NULL
     if p != C_NULL
-        ccall((:libevdev_uinput_destroy, LibEvdev.libevdev),
-              Cvoid, (Ptr{LibEvdev.libevdev_uinput},), p)
+        ccall((:libevdev_uinput_destroy, LibevdevRaw.libevdev),
+              Cvoid, (Ptr{LibevdevRaw.libevdev_uinput},), p)
     end
     return nothing
 end
@@ -105,8 +105,8 @@ Base.isopen(u::UinputDevice) = !u.closed
 
 # Allow passing a UinputDevice directly to ccalls expecting
 # Ptr{libevdev_uinput}; unsafe_convert is the closed-check gate.
-Base.cconvert(::Type{Ptr{LibEvdev.libevdev_uinput}}, u::UinputDevice) = u
-function Base.unsafe_convert(::Type{Ptr{LibEvdev.libevdev_uinput}}, u::UinputDevice)
+Base.cconvert(::Type{Ptr{LibevdevRaw.libevdev_uinput}}, u::UinputDevice) = u
+function Base.unsafe_convert(::Type{Ptr{LibevdevRaw.libevdev_uinput}}, u::UinputDevice)
     u.closed && error("UinputDevice is closed")
     return u.ptr
 end
@@ -135,9 +135,9 @@ a key press) must end with a `syn` call to be observed.
 """
 function write_event(u::UinputDevice, type::Integer, code::Integer, value::Integer)
     lock(u.lock) do
-        rc = ccall((:libevdev_uinput_write_event, LibEvdev.libevdev),
+        rc = ccall((:libevdev_uinput_write_event, LibevdevRaw.libevdev),
                    Cint,
-                   (Ptr{LibEvdev.libevdev_uinput}, Cuint, Cuint, Cint),
+                   (Ptr{LibevdevRaw.libevdev_uinput}, Cuint, Cuint, Cint),
                    u, UInt32(type), UInt32(code), Int32(value))
         check(rc, "libevdev_uinput_write_event")
     end
@@ -174,8 +174,8 @@ it (older kernels or sysfs not mounted).
 """
 function syspath(u::UinputDevice)
     p = lock(u.lock) do
-        ccall((:libevdev_uinput_get_syspath, LibEvdev.libevdev),
-              Ptr{Cchar}, (Ptr{LibEvdev.libevdev_uinput},), u)
+        ccall((:libevdev_uinput_get_syspath, LibevdevRaw.libevdev),
+              Ptr{Cchar}, (Ptr{LibevdevRaw.libevdev_uinput},), u)
     end
     return p == C_NULL ? nothing : unsafe_string(p)
 end
@@ -192,8 +192,8 @@ determine it.
 """
 function devnode(u::UinputDevice)
     p = lock(u.lock) do
-        ccall((:libevdev_uinput_get_devnode, LibEvdev.libevdev),
-              Ptr{Cchar}, (Ptr{LibEvdev.libevdev_uinput},), u)
+        ccall((:libevdev_uinput_get_devnode, LibevdevRaw.libevdev),
+              Ptr{Cchar}, (Ptr{LibevdevRaw.libevdev_uinput},), u)
     end
     return p == C_NULL ? nothing : unsafe_string(p)
 end

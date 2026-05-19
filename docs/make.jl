@@ -1,9 +1,9 @@
 using Documenter
-using Libev
+using Libevdev
 
 makedocs(
-    sitename = "Libev.jl",
-    modules = [Libev],
+    sitename = "Libevdev.jl",
+    modules = [Libevdev],
     authors = "Benjamin Chung",
     format = Documenter.HTML(
         prettyurls = get(ENV, "CI", "false") == "true",
@@ -19,7 +19,7 @@ makedocs(
         "Kernel constants" => "constants.md",
         "Internals" => "internals.md",
     ],
-    # The kernel-constants flood (700+ bindings re-exported from LibEvdev)
+    # The kernel-constants flood (700+ bindings re-exported from LibevdevRaw)
     # would generate that many "missing docstring" warnings; suppress
     # missing-docs checking entirely and rely on the per-page autodocs
     # blocks for the wrapper API's coverage.

@@ -6,13 +6,13 @@ and curious users.
 
 ## Bindings module
 
-The `Libev.LibEvdev` submodule (in `src/LibEvdev.jl`) is generated from
+The `Libevdev.LibevdevRaw` submodule (in `src/LibevdevRaw.jl`) is generated from
 the libevdev headers by Clang.jl and contains the raw C API — opaque
 `mutable struct libevdev`/`libevdev_uinput` placeholder types, all the
 `libevdev_*` `ccall` wrappers, and the `@cenum`-defined enums.
 
 For bindings the wrapper layer omits, call into the submodule directly
-as `Libev.LibEvdev.libevdev_*`. You are then responsible for locking,
+as `Libevdev.LibevdevRaw.libevdev_*`. You are then responsible for locking,
 lifecycle, and Julia-vs-C type conversion.
 
 Regenerate with:
@@ -24,7 +24,7 @@ julia --project=gen gen/generator.jl
 ## Kernel constants
 
 The `EV_*`, `KEY_*`, `BTN_*`, `ABS_*`, `FF_*`, `MT_TOOL_*`, `BUS_*`,
-`ID_*`, etc. constants are emitted directly into `Libev` at precompile
+`ID_*`, etc. constants are emitted directly into `Libevdev` at precompile
 time by a small parser (`src/parse_event_codes.jl`) that reads
 `/usr/include/linux/input-event-codes.h` and `/usr/include/linux/input.h`,
 with bundled fallbacks in `deps/`. See [Kernel constants](constants.md)
@@ -41,7 +41,7 @@ for details.
 | `src/props.jl` | Identity / capability / `abs_info` accessors. |
 | `src/axis_tracker.jl` | [`AxisTracker`](@ref) and its background pump. |
 | `src/parse_event_codes.jl` | Precompile-time parser for the kernel constants header. |
-| `src/Libev.jl` | Top-level module — assembly + precompile-time codes parse + exports. |
+| `src/Libevdev.jl` | Top-level module — assembly + precompile-time codes parse + exports. |
 
 ## Concurrency invariants
 

@@ -1,7 +1,7 @@
 # Reading events
 
 ```@meta
-CurrentModule = Libev
+CurrentModule = Libevdev
 ```
 
 Three layers of API are provided, each useful for a different style of
@@ -36,7 +36,7 @@ read_event
 
 ```@docs
 events
-Libev.EventIterator
+Libevdev.EventIterator
 ```
 
 ## Channel pump

@@ -1,7 +1,7 @@
 # Writing events (uinput)
 
 ```@meta
-CurrentModule = Libev
+CurrentModule = Libevdev
 ```
 
 [`UinputDevice`](@ref) wraps a kernel `/dev/uinput` virtual input

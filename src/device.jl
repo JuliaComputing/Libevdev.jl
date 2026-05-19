@@ -23,7 +23,7 @@ collection.
 - Track absolute axes: pass to [`AxisTracker`](@ref).
 """
 mutable struct EvdevDevice
-    ptr::Ptr{LibEvdev.libevdev}
+    ptr::Ptr{LibevdevRaw.libevdev}
     fd::RawFD
     owns_fd::Bool
     lock::ReentrantLock
@@ -63,8 +63,8 @@ function EvdevDevice(path::AbstractString)
         throw(Base.SystemError("open($(repr(path)))", Libc.errno()))
     end
     fd = RawFD(raw)
-    ref = Ref{Ptr{LibEvdev.libevdev}}(C_NULL)
-    rc = LibEvdev.libevdev_new_from_fd(raw, ref)
+    ref = Ref{Ptr{LibevdevRaw.libevdev}}(C_NULL)
+    rc = LibevdevRaw.libevdev_new_from_fd(raw, ref)
     if rc < 0
         # Clean up on partial construction so no fd escapes.
         ccall(:close, Cint, (Cint,), raw)
@@ -96,7 +96,7 @@ will fail at the `poll_fd` step.
 - `EvdevError` (with `errno = ENOMEM`) if `libevdev_new` returns NULL.
 """
 function EvdevDevice()
-    ptr = LibEvdev.libevdev_new()
+    ptr = LibevdevRaw.libevdev_new()
     ptr == C_NULL && throw(EvdevError(Int32(Libc.ENOMEM), "libevdev_new"))
     dev = EvdevDevice(ptr, RawFD(-1), false, ReentrantLock(), false)
     finalizer(_finalize_device!, dev)
@@ -124,8 +124,8 @@ A live `EvdevDevice`.
 """
 function EvdevDevice(fd::RawFD; owns_fd::Bool=false)
     raw = Cint(fd)
-    ref = Ref{Ptr{LibEvdev.libevdev}}(C_NULL)
-    rc = LibEvdev.libevdev_new_from_fd(raw, ref)
+    ref = Ref{Ptr{LibevdevRaw.libevdev}}(C_NULL)
+    rc = LibevdevRaw.libevdev_new_from_fd(raw, ref)
     if rc < 0
         if owns_fd
             ccall(:close, Cint, (Cint,), raw)
@@ -157,7 +157,7 @@ function Base.close(dev::EvdevDevice)
     p = dev.ptr
     dev.ptr = C_NULL
     if p != C_NULL
-        LibEvdev.libevdev_free(p)
+        LibevdevRaw.libevdev_free(p)
     end
     if dev.owns_fd
         ccall(:close, Cint, (Cint,), Cint(dev.fd))
@@ -192,8 +192,8 @@ end
 
 # Allow passing an EvdevDevice directly to ccalls expecting Ptr{libevdev}.
 # `unsafe_convert` is the only validation gate on the ccall fast path.
-Base.cconvert(::Type{Ptr{LibEvdev.libevdev}}, dev::EvdevDevice) = dev
-function Base.unsafe_convert(::Type{Ptr{LibEvdev.libevdev}}, dev::EvdevDevice)
+Base.cconvert(::Type{Ptr{LibevdevRaw.libevdev}}, dev::EvdevDevice) = dev
+function Base.unsafe_convert(::Type{Ptr{LibevdevRaw.libevdev}}, dev::EvdevDevice)
     dev.closed && error("EvdevDevice is closed")
     return dev.ptr
 end

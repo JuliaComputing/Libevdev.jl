@@ -1,7 +1,7 @@
-module Libev
+module Libevdev
 
-include("LibEvdev.jl")
-using .LibEvdev
+include("LibevdevRaw.jl")
+using .LibevdevRaw
 
 # Parse the kernel input headers at precompile time and define matching
 # `const` bindings (EV_*, KEY_*, BTN_*, ABS_*, FF_*, MT_TOOL_*, BUS_*,
@@ -37,7 +37,7 @@ let paths = _find_kernel_headers()
 
         To recover: reinstall your distribution's kernel-headers
         package, replace the bundled fallback at `deps/`, or point
-        Libev at a known-good copy via the JULIA_LIBEV_KERNEL_HEADERS
+        Libevdev at a known-good copy via the JULIA_LIBEVDEV_KERNEL_HEADERS
         environment variable.
         """)
     end
@@ -64,4 +64,4 @@ export EvdevDevice, UinputDevice, InputEvent, EvdevError,
        set_abs_info!,
        AxisTracker, AxisRange, axis, axis_values, axis_range, axis_codes
 
-end # module Libev
+end # module Libevdev

@@ -1,4 +1,4 @@
-name = "Libev"
+name = "Libevdev"
 uuid = "16d368ef-f5da-4971-84d3-b8145f955bda"
 version = "0.1.0"
 authors = ["Benjamin Chung <ckfinite@gmail.com>"]

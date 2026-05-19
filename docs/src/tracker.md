@@ -1,7 +1,7 @@
 # Absolute-axis tracker
 
 ```@meta
-CurrentModule = Libev
+CurrentModule = Libevdev
 ```
 
 [`AxisTracker`](@ref) is a thin self-contained wrapper specialized for

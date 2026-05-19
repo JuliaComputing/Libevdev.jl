@@ -74,7 +74,7 @@ function _discover_abs_axes(dev::EvdevDevice)
                                  Int32(info.fuzz), Int32(info.flat),
                                  Int32(info.resolution))
         v = lock(dev.lock) do
-            LibEvdev.libevdev_get_event_value(dev, Cuint(EV_ABS), Cuint(code))
+            LibevdevRaw.libevdev_get_event_value(dev, Cuint(EV_ABS), Cuint(code))
         end
         values[code] = Threads.Atomic{Int32}(Int32(v))
     end
@@ -150,22 +150,22 @@ function _pump_axes(t::AxisTracker)
     sync_mode = false
     while !t.stopping[]
         isopen(dev) || break
-        flag = sync_mode ? UInt32(LibEvdev.LIBEVDEV_READ_FLAG_SYNC) :
-                           UInt32(LibEvdev.LIBEVDEV_READ_FLAG_NORMAL)
+        flag = sync_mode ? UInt32(LibevdevRaw.LIBEVDEV_READ_FLAG_SYNC) :
+                           UInt32(LibevdevRaw.LIBEVDEV_READ_FLAG_NORMAL)
         status = try
             lock(dev.lock) do
-                ccall((:libevdev_next_event, LibEvdev.libevdev),
+                ccall((:libevdev_next_event, LibevdevRaw.libevdev),
                       Cint,
-                      (Ptr{LibEvdev.libevdev}, Cuint, Ptr{InputEvent}),
+                      (Ptr{LibevdevRaw.libevdev}, Cuint, Ptr{InputEvent}),
                       dev, flag, ev_ref)
             end
         catch
             # Device closed mid-read or another terminal condition.
             break
         end
-        if status == Int(LibEvdev.LIBEVDEV_READ_STATUS_SUCCESS)
+        if status == Int(LibevdevRaw.LIBEVDEV_READ_STATUS_SUCCESS)
             _record_abs!(t, ev_ref[])
-        elseif status == Int(LibEvdev.LIBEVDEV_READ_STATUS_SYNC)
+        elseif status == Int(LibevdevRaw.LIBEVDEV_READ_STATUS_SYNC)
             # Either the initial SYN_DROPPED notice or a sync-phase event.
             _record_abs!(t, ev_ref[])
             sync_mode = true
