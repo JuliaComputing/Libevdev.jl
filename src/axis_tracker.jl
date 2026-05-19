@@ -100,6 +100,14 @@ A live `AxisTracker` whose pump task is already running.
 # Throws
 Any exception raised while discovering axes (notably `EvdevError` from
 [`abs_info`](@ref) on a misbehaving device).
+
+# Notes
+Each axis slot is seeded with libevdev's *cached* current value at
+construction time. For axes the device hasn't reported a position for
+yet (most absolute devices are quiescent until the first user input),
+that cached value will be `0`. The first real event updates the slot.
+If you need a guaranteed-correct initial value, wait for an event
+before querying.
 """
 function AxisTracker(dev::EvdevDevice; own::Bool=false)
     ranges, values = _discover_abs_axes(dev)

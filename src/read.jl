@@ -2,8 +2,13 @@ using FileWatching: poll_fd
 
 const _EAGAIN = Int(Base.Libc.EAGAIN)
 
+# Maximum interval between `isopen` re-checks while parked in `poll_fd`.
+# Bounds the latency at which a `read_event(; block=true)` call observes
+# a concurrent `close(dev)` from another task and returns.
+const _BLOCK_POLL_TIMEOUT_S = 0.1
+
 """
-    read_event(dev; block=true, drain_sync=true) -> Union{InputEvent, Nothing}
+    read_event(dev; block=true) -> Union{InputEvent, Nothing}
 
 Read a single event from `dev`.
 
@@ -12,27 +17,33 @@ Read a single event from `dev`.
 - `block::Bool=true`: when `true`, wait until an event is available;
   when `false`, return `nothing` immediately if the device's queue is
   empty.
-- `drain_sync::Bool=true`: accepted for API symmetry with the iterator
-  layer. At this primitive level the kernel's `SYN_DROPPED` notice is
-  returned as a regular event; the caller is responsible for entering
-  SYNC drain mode. Use [`events`](@ref) for transparent draining.
 
 # Returns
-The next [`InputEvent`](@ref), or `nothing` when `block=false` and no
-event is queued.
+The next [`InputEvent`](@ref), or `nothing` if no event is available —
+either because `block=false` was set and the queue was empty, or
+because the device was closed while the call was parked.
+
+If the kernel reports `SYN_DROPPED` (the queue overflowed), the
+returned event is the `EV_SYN`/`SYN_DROPPED` marker itself; the caller
+is responsible for entering SYNC drain mode. Use [`events`](@ref) for
+transparent draining.
 
 # Throws
 - `EvdevError` for any non-`EAGAIN` error from `libevdev_next_event`.
-- May raise from `poll_fd` if the underlying fd is invalidated.
 
 # Notes
 Safe to call from any task. The internal lock is released across the
 `poll_fd` wait, leaving other tasks (writers, [`grab`](@ref), ...)
 free to proceed against the device while a reader is parked.
+
+Blocking calls use a timed poll with `isopen` re-checks (~100 ms
+granularity), so a concurrent `close(dev)` from another task always
+unwedges the reader.
 """
-function read_event(dev::EvdevDevice; block::Bool=true, drain_sync::Bool=true)
+function read_event(dev::EvdevDevice; block::Bool=true)
     ev_ref = Ref{InputEvent}()
     while true
+        isopen(dev) || return nothing
         status = lock(dev.lock) do
             ccall((:libevdev_next_event, LibEvdev.libevdev),
                   Cint, (Ptr{LibEvdev.libevdev}, Cuint, Ptr{InputEvent}),
@@ -49,7 +60,13 @@ function read_event(dev::EvdevDevice; block::Bool=true, drain_sync::Bool=true)
             block || return nothing
             # Lock was released by the `lock do` block above; do not
             # hold it across the poll, which can park indefinitely.
-            poll_fd(dev.fd, typemax(Cint); readable=true)
+            # Timed poll guarantees we re-check `isopen` periodically.
+            try
+                poll_fd(dev.fd, _BLOCK_POLL_TIMEOUT_S; readable=true)
+            catch
+                # Poll error (fd invalidated, etc.) — loop will re-check
+                # isopen and either retry or exit cleanly.
+            end
         else
             throw(EvdevError(Int32(-status), "libevdev_next_event"))
         end
@@ -101,7 +118,7 @@ function Base.iterate(it::EventIterator, state::Symbol=:normal)
     isopen(dev) || return nothing
     try
         if state === :normal
-            ev = read_event(dev; block=true, drain_sync=false)
+            ev = read_event(dev; block=true)
             ev === nothing && return nothing
             if ev.type == EV_SYN && ev.code == SYN_DROPPED
                 return (ev, :sync)
@@ -170,8 +187,15 @@ function event_channel(dev::EvdevDevice; size::Integer=64)
         for ev in events(dev)
             put!(ch, ev)
         end
+        # Clean exit: iterator returned `nothing`, meaning the device
+        # was closed. Consumers will see the channel close below.
+        @debug "event_channel pump exiting cleanly (device closed)"
     catch e
-        @debug "event_channel pump exiting" exception=e
+        # An unexpected error in the read path. Surface it at @warn so
+        # consumers can correlate "my channel suddenly closed" with a
+        # cause. A `Channel` can't carry an exception payload, so log
+        # is the best we can do.
+        @warn "event_channel pump exiting due to error" exception=(e, catch_backtrace())
     finally
         close(ch)
     end

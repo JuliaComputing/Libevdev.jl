@@ -57,3 +57,38 @@ end
     end
     return rc
 end
+
+# Compact lookup table for EV_* type names, used by InputEvent's show
+# method. We list the kernel event-type names explicitly rather than
+# walking everything that matches `EV_*`, since `<linux/input.h>` also
+# defines `EV_VERSION` (the input-subsystem protocol version, a UInt32)
+# under the same prefix.
+const _EV_TYPE_NAMES = let d = Dict{UInt16, String}()
+    for sym in (:EV_SYN, :EV_KEY, :EV_REL, :EV_ABS, :EV_MSC, :EV_SW,
+                :EV_LED, :EV_SND, :EV_REP, :EV_FF, :EV_PWR, :EV_FF_STATUS)
+        if isdefined(@__MODULE__, sym)
+            v = getfield(@__MODULE__, sym)
+            v isa Integer && (d[UInt16(v)] = string(sym))
+        end
+    end
+    d
+end
+
+_ev_type_label(t::UInt16) =
+    get(_EV_TYPE_NAMES, t, "0x" * string(t, base=16, pad=2))
+
+"""
+    show(io::IO, ev::InputEvent)
+
+Compact one-line representation, with the event type rendered as its
+`EV_*` name when known:
+
+    InputEvent(EV_KEY code=0x001e value=1 t=12345.000123)
+"""
+function Base.show(io::IO, ev::InputEvent)
+    print(io, "InputEvent(", _ev_type_label(ev.type),
+          " code=0x", string(ev.code, base=16, pad=4),
+          " value=", ev.value,
+          " t=", ev.sec, ".", lpad(ev.usec, 6, '0'),
+          ")")
+end

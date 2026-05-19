@@ -76,6 +76,34 @@ function EvdevDevice(path::AbstractString)
 end
 
 """
+    EvdevDevice() -> EvdevDevice
+
+Create a synthetic device with no attached file descriptor — a blank
+libevdev handle suitable as a template for [`UinputDevice`](@ref).
+
+Configure the device with [`set_name!`](@ref), [`set_vendor_id!`](@ref),
+[`enable_event!`](@ref), and friends, then pass it to
+`UinputDevice(template)` to materialize a virtual input device with
+the configured identity and capabilities.
+
+# Returns
+A live `EvdevDevice` with `fd = RawFD(-1)`. Reading APIs
+([`read_event`](@ref), [`events`](@ref), [`event_channel`](@ref),
+[`AxisTracker`](@ref)) are not meaningful on a synthetic device and
+will fail at the `poll_fd` step.
+
+# Throws
+- `EvdevError` (with `errno = ENOMEM`) if `libevdev_new` returns NULL.
+"""
+function EvdevDevice()
+    ptr = LibEvdev.libevdev_new()
+    ptr == C_NULL && throw(EvdevError(Int32(Libc.ENOMEM), "libevdev_new"))
+    dev = EvdevDevice(ptr, RawFD(-1), false, ReentrantLock(), false)
+    finalizer(_finalize_device!, dev)
+    return dev
+end
+
+"""
     EvdevDevice(fd::RawFD; owns_fd::Bool=false) -> EvdevDevice
 
 Wrap an existing file descriptor in a libevdev handle. The caller is

@@ -1,5 +1,5 @@
 [general]
-library_name = "libevdev"
+library_name = "libevdev_jll.libevdev"
 output_file_path = "../src/LibEvdev.jl"
 module_name = "LibEvdev"
 jll_pkg_name = "libevdev_jll"

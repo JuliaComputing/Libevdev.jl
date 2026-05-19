@@ -58,6 +58,10 @@ export EvdevDevice, UinputDevice, InputEvent, EvdevError,
        write_event, syn, syspath, devnode,
        name, phys, uniq, vendor_id, product_id, bustype, version, driver_version,
        has_event, has_property, grab, ungrab, abs_info,
+       set_name!, set_phys!, set_uniq!,
+       set_vendor_id!, set_product_id!, set_bustype!, set_version!,
+       enable_event!, disable_event!, enable_property!, disable_property!,
+       set_abs_info!,
        AxisTracker, AxisRange, axis, axis_values, axis_range, axis_codes
 
 end # module Libev
