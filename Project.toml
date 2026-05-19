@@ -1,0 +1,13 @@
+name = "Libev"
+uuid = "16d368ef-f5da-4971-84d3-b8145f955bda"
+version = "0.1.0"
+authors = ["Benjamin Chung <ckfinite@gmail.com>"]
+
+[deps]
+CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
+FileWatching = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
+libevdev_jll = "2db6ffa8-e38f-5e21-84af-90c45d0032cc"
+
+[compat]
+CEnum = "0.5"
+julia = "1.10"
