@@ -70,6 +70,11 @@ mutable struct AxisTracker
     ranges::Dict{UInt16, AxisRange}
     abs_values::Dict{UInt16, Threads.Atomic{Int32}}
     rel_values::Dict{UInt16, Threads.Atomic{Int32}}
+    # Diagnostic counters. Atomic because the pump task increments
+    # them; queries via `tracker_status` are unsynchronized reads.
+    events_seen::Threads.Atomic{Int}
+    abs_events_seen::Threads.Atomic{Int}
+    rel_events_seen::Threads.Atomic{Int}
     task::Union{Task, Nothing}
     stopping::Threads.Atomic{Bool}
     closed::Bool
@@ -140,7 +145,11 @@ before querying.
 function AxisTracker(dev::EvdevDevice; own::Bool=false)
     ranges, abs_values = _discover_abs_axes(dev)
     rel_values = _discover_rel_axes(dev)
-    t = AxisTracker(dev, own, ranges, abs_values, rel_values, nothing,
+    t = AxisTracker(dev, own, ranges, abs_values, rel_values,
+                    Threads.Atomic{Int}(0),
+                    Threads.Atomic{Int}(0),
+                    Threads.Atomic{Int}(0),
+                    nothing,
                     Threads.Atomic{Bool}(false), false)
     finalizer(_finalize_tracker!, t)
     t.task = Threads.@spawn _pump_axes(t)
@@ -221,13 +230,17 @@ function _pump_axes(t::AxisTracker)
 end
 
 @inline function _record_event!(t::AxisTracker, ev::InputEvent)
+    Threads.atomic_add!(t.events_seen, 1)
+    @debug "AxisTracker event" type=ev.type code=ev.code value=ev.value
     if ev.type == UInt16(EV_ABS)
         # Absolute axes: overwrite with the latest reported value.
+        Threads.atomic_add!(t.abs_events_seen, 1)
         slot = get(t.abs_values, ev.code, nothing)
         slot === nothing || (slot[] = ev.value)
     elseif ev.type == UInt16(EV_REL)
         # Relative axes: accumulate the delta atomically. atomic_add!
         # returns the previous value, which we discard.
+        Threads.atomic_add!(t.rel_events_seen, 1)
         slot = get(t.rel_values, ev.code, nothing)
         slot === nothing || Threads.atomic_add!(slot, ev.value)
     end
@@ -433,8 +446,8 @@ end
 
 Diagnostic snapshot of the tracker's internal state. Useful when
 `axis`/`rel` queries return stale values — surfaces whether the
-background pump is still running, which axes were discovered, and
-the captured pump-task exception if the pump exited.
+background pump is running, which axes were discovered, how many
+events have been processed, and any captured pump-task exception.
 
 # Returns
 A `NamedTuple` with fields:
@@ -443,7 +456,25 @@ A `NamedTuple` with fields:
   cleanly, otherwise the exception that killed it.
 - `abs_codes::Vector{UInt16}` — `ABS_*` codes discovered at construction.
 - `rel_codes::Vector{UInt16}` — `REL_*` codes discovered at construction.
+- `events_seen::Int` — total events processed by the pump so far.
+- `abs_events_seen::Int` — `EV_ABS` events specifically.
+- `rel_events_seen::Int` — `EV_REL` events specifically.
 - `closed::Bool` — whether `close(t)` has been called.
+
+# Diagnosing missing updates
+
+If `axis(t, code)` or `rel(t, code)` returns a stale value:
+
+- `events_seen == 0` → the pump isn't seeing events; check
+  `running` / `task_exception`, and verify the device's fd is the
+  right one.
+- `rel_events_seen > 0` but `rel(t, code) == 0` → events are
+  arriving but the slot for `code` doesn't exist; check `rel_codes`.
+  If it's missing, libevdev didn't advertise that axis at
+  construction.
+- `task_exception !== nothing` → the pump died; inspect the
+  exception. `JULIA_DEBUG=Libevdev` adds a per-event log to the
+  pump for finer-grained diagnosis.
 """
 function tracker_status(t::AxisTracker)
     running = t.task !== nothing && !istaskdone(t.task)
@@ -456,9 +487,12 @@ function tracker_status(t::AxisTracker)
             task_exception = e
         end
     end
-    (running        = running,
-     task_exception = task_exception,
-     abs_codes      = sort!(collect(keys(t.abs_values))),
-     rel_codes      = sort!(collect(keys(t.rel_values))),
-     closed         = t.closed)
+    (running         = running,
+     task_exception  = task_exception,
+     abs_codes       = sort!(collect(keys(t.abs_values))),
+     rel_codes       = sort!(collect(keys(t.rel_values))),
+     events_seen     = t.events_seen[],
+     abs_events_seen = t.abs_events_seen[],
+     rel_events_seen = t.rel_events_seen[],
+     closed          = t.closed)
 end
