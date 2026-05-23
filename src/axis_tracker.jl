@@ -1,4 +1,5 @@
 const _ABS_CODE_RANGE = UInt16(0):UInt16(ABS_MAX)
+const _REL_CODE_RANGE = UInt16(0):UInt16(REL_MAX)
 
 """
     AxisRange(minimum, maximum, fuzz, flat, resolution)
@@ -25,36 +26,50 @@ end
 """
     AxisTracker
 
-A background-pumped view of an absolute-axis device's current state,
+A background-pumped view of an input device's current axis state,
 designed for high-rate polling from any task.
 
 A tracker spawns a `Threads.@spawn` watcher task that drains events
-from the underlying [`EvdevDevice`](@ref) and writes the latest value
-of each `EV_ABS` axis into an atomic slot. The [`axis`](@ref) and
-[`axis_values`](@ref) queries read those slots with lock-free atomic
-loads, so callers can poll at any rate without contending with the
-watcher or each other.
+from the underlying [`EvdevDevice`](@ref) and updates atomic slots for
+two event classes:
+
+- **`EV_ABS` (absolute axes)** — each slot holds the *latest reported
+  value*, overwritten on every event. Use for joystick positions,
+  touch coordinates, tablet pen pressure.
+- **`EV_REL` (relative axes)** — each slot holds the *cumulative sum
+  of deltas* since the tracker was constructed (or the slot was last
+  consumed). Use for mouse motion, scroll wheel ticks.
+
+All queries are lock-free atomic loads, so callers can poll at any
+rate without contending with the watcher or each other.
 
 # Lifecycle
 Construct with [`AxisTracker(path)`](@ref) or
 [`AxisTracker(dev; own)`](@ref). Always [`close`](@ref) when done. The
 GC finalizer also closes the tracker.
 
-# Query API
+# Absolute-axis API
 - Latest value of one axis: [`axis`](@ref).
 - Snapshot of all axes: [`axis_values`](@ref).
-- Static metadata: [`axis_range`](@ref), [`axis_codes`](@ref).
+- Static range metadata: [`axis_range`](@ref), [`axis_codes`](@ref).
+
+# Relative-axis API
+- Cumulative delta on one axis: [`rel`](@ref).
+- Snapshot of all relative axes: [`rel_values`](@ref).
+- Codes followed: [`rel_codes`](@ref).
+- Consume-and-reset (read the delta since last consume): [`consume_rel!`](@ref), [`consume_rel_values!`](@ref).
 
 # Limitations
 Multi-touch (`MT_*`) axes are tracked, but values are conflated across
-touch slots. For proper multi-touch, drive the slot API on the
-underlying device directly rather than going through `AxisTracker`.
+touch slots — the tracker keeps one slot per code. For per-touch
+state, drive the slot API on the underlying device directly.
 """
 mutable struct AxisTracker
     device::EvdevDevice
     owns_device::Bool
     ranges::Dict{UInt16, AxisRange}
-    values::Dict{UInt16, Threads.Atomic{Int32}}
+    abs_values::Dict{UInt16, Threads.Atomic{Int32}}
+    rel_values::Dict{UInt16, Threads.Atomic{Int32}}
     task::Union{Task, Nothing}
     stopping::Threads.Atomic{Bool}
     closed::Bool
@@ -79,6 +94,19 @@ function _discover_abs_axes(dev::EvdevDevice)
         values[code] = Threads.Atomic{Int32}(Int32(v))
     end
     return ranges, values
+end
+
+# Walk the kernel's REL code range and pick up every relative axis the
+# device advertises. Relative axes report deltas, so each slot starts
+# at 0 and accumulates as events arrive.
+function _discover_rel_axes(dev::EvdevDevice)
+    values = Dict{UInt16, Threads.Atomic{Int32}}()
+    has_event(dev, Int(EV_REL)) || return values
+    for code in _REL_CODE_RANGE
+        has_event(dev, Int(EV_REL), Int(code)) || continue
+        values[code] = Threads.Atomic{Int32}(Int32(0))
+    end
+    return values
 end
 
 """
@@ -110,8 +138,9 @@ If you need a guaranteed-correct initial value, wait for an event
 before querying.
 """
 function AxisTracker(dev::EvdevDevice; own::Bool=false)
-    ranges, values = _discover_abs_axes(dev)
-    t = AxisTracker(dev, own, ranges, values, nothing,
+    ranges, abs_values = _discover_abs_axes(dev)
+    rel_values = _discover_rel_axes(dev)
+    t = AxisTracker(dev, own, ranges, abs_values, rel_values, nothing,
                     Threads.Atomic{Bool}(false), false)
     finalizer(_finalize_tracker!, t)
     t.task = Threads.@spawn _pump_axes(t)
@@ -164,10 +193,10 @@ function _pump_axes(t::AxisTracker)
             break
         end
         if status == Int(LibevdevRaw.LIBEVDEV_READ_STATUS_SUCCESS)
-            _record_abs!(t, ev_ref[])
+            _record_event!(t, ev_ref[])
         elseif status == Int(LibevdevRaw.LIBEVDEV_READ_STATUS_SYNC)
             # Either the initial SYN_DROPPED notice or a sync-phase event.
-            _record_abs!(t, ev_ref[])
+            _record_event!(t, ev_ref[])
             sync_mode = true
         elseif status == -_EAGAIN
             if sync_mode
@@ -187,12 +216,16 @@ function _pump_axes(t::AxisTracker)
     return nothing
 end
 
-@inline function _record_abs!(t::AxisTracker, ev::InputEvent)
+@inline function _record_event!(t::AxisTracker, ev::InputEvent)
     if ev.type == UInt16(EV_ABS)
-        slot = get(t.values, ev.code, nothing)
-        if slot !== nothing
-            slot[] = ev.value
-        end
+        # Absolute axes: overwrite with the latest reported value.
+        slot = get(t.abs_values, ev.code, nothing)
+        slot === nothing || (slot[] = ev.value)
+    elseif ev.type == UInt16(EV_REL)
+        # Relative axes: accumulate the delta atomically. atomic_add!
+        # returns the previous value, which we discard.
+        slot = get(t.rel_values, ev.code, nothing)
+        slot === nothing || Threads.atomic_add!(slot, ev.value)
     end
     return nothing
 end
@@ -204,8 +237,9 @@ Stop the pump task and (if the tracker owns its device) close the
 underlying [`EvdevDevice`](@ref). Idempotent.
 
 After `close`, the pump task stops and the tracker no longer records
-new events. The slot dictionaries are retained, so [`axis`](@ref) and
-[`axis_values`](@ref) continue to return the values held at shutdown.
+new events. The slot dictionaries are retained, so [`axis`](@ref),
+[`axis_values`](@ref), [`rel`](@ref), and [`rel_values`](@ref)
+continue to return the values held at shutdown.
 
 # Notes
 Stop is signaled via an atomic flag the pump observes between reads.
@@ -255,7 +289,7 @@ with the watcher task.
 # Throws
 - `KeyError` if the device doesn't expose that axis.
 """
-axis(t::AxisTracker, code::Integer) = t.values[UInt16(code)][]
+axis(t::AxisTracker, code::Integer) = t.abs_values[UInt16(code)][]
 
 """
     axis_values(t::AxisTracker) -> Dict{UInt16, Int32}
@@ -277,7 +311,7 @@ silently turn this into a method extension of the Base function).
 """
 function axis_values(t::AxisTracker)
     out = Dict{UInt16, Int32}()
-    for (code, slot) in t.values
+    for (code, slot) in t.abs_values
         out[code] = slot[]
     end
     return out
@@ -301,3 +335,91 @@ axis_range(t::AxisTracker, code::Integer) = t.ranges[UInt16(code)]
 Sorted list of `ABS_*` codes this tracker is following.
 """
 axis_codes(t::AxisTracker) = sort!(collect(keys(t.ranges)))
+
+"""
+    rel(t::AxisTracker, code::Integer) -> Int32
+
+Cumulative delta on the `REL_*` axis identified by `code`, summed
+from every event seen since the tracker was constructed or since the
+slot was last consumed via [`consume_rel!`](@ref).
+
+# Arguments
+- `code`: a `REL_*` constant (`REL_X`, `REL_Y`, `REL_WHEEL`, ...).
+
+# Returns
+The accumulated delta as an `Int32`. Safe to call at any rate from
+any task — the read is a lock-free atomic load on the slot shared
+with the watcher task.
+
+# Throws
+- `KeyError` if the device doesn't expose that relative axis.
+"""
+rel(t::AxisTracker, code::Integer) = t.rel_values[UInt16(code)][]
+
+"""
+    rel_values(t::AxisTracker) -> Dict{UInt16, Int32}
+
+Snapshot of the cumulative delta on every tracked relative axis,
+keyed by `REL_*` code.
+
+# Returns
+A new `Dict` mapping axis code to accumulated value.
+
+# Notes
+Each slot is read atomically, but the snapshot is not transactional
+across axes — two axes in the dictionary may reflect deltas summed
+to slightly different points in time.
+"""
+function rel_values(t::AxisTracker)
+    out = Dict{UInt16, Int32}()
+    for (code, slot) in t.rel_values
+        out[code] = slot[]
+    end
+    return out
+end
+
+"""
+    rel_codes(t::AxisTracker) -> Vector{UInt16}
+
+Sorted list of `REL_*` codes this tracker is following.
+"""
+rel_codes(t::AxisTracker) = sort!(collect(keys(t.rel_values)))
+
+"""
+    consume_rel!(t::AxisTracker, code::Integer) -> Int32
+
+Atomically read and reset the cumulative delta on the given `REL_*`
+axis. Returns the value held in the slot at the moment of the call;
+the slot is left at `0` for the next accumulation cycle.
+
+This is the idiomatic primitive for per-frame consumers (game loops,
+input controllers) that want "movement since last frame": call
+`consume_rel!(t, REL_X)` once per frame and drive your camera or
+cursor by the returned delta.
+
+# Throws
+- `KeyError` if the device doesn't expose that relative axis.
+"""
+consume_rel!(t::AxisTracker, code::Integer) =
+    Threads.atomic_xchg!(t.rel_values[UInt16(code)], Int32(0))
+
+"""
+    consume_rel_values!(t::AxisTracker) -> Dict{UInt16, Int32}
+
+Atomically read and reset every tracked relative axis. Returns a
+`Dict` of axis code to accumulated delta at the moment each slot was
+swapped; the slots are left at `0`.
+
+# Notes
+Each per-axis swap is atomic, but the bulk operation is not
+transactional across axes. An event that arrives while
+`consume_rel_values!` is iterating may land in the just-reset slot
+and show up on the next consume.
+"""
+function consume_rel_values!(t::AxisTracker)
+    out = Dict{UInt16, Int32}()
+    for (code, slot) in t.rel_values
+        out[code] = Threads.atomic_xchg!(slot, Int32(0))
+    end
+    return out
+end

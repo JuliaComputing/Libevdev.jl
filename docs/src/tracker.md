@@ -1,21 +1,40 @@
-# Absolute-axis tracker
+# Axis tracker
 
 ```@meta
 CurrentModule = Libevdev
 ```
 
-[`AxisTracker`](@ref) is a thin self-contained wrapper specialized for
-joysticks, gamepads, tablets, and similar absolute-axis devices,
-designed for high-rate polling. A background task drains events from
-the underlying device and writes the latest value of each `EV_ABS`
-axis into an atomic slot; [`axis`](@ref) / [`axis_values`](@ref)
-queries read those slots with lock-free atomic loads.
+[`AxisTracker`](@ref) is a thin self-contained wrapper for input
+devices that report axis state — joysticks, gamepads, tablets,
+touchpads, mice. A background task drains events from the underlying
+device and updates atomic slots in two flavours:
+
+- **Absolute axes (`EV_ABS`)** — slot holds the *latest reported
+  value*. Use for joystick positions, touch coordinates, pen pressure.
+- **Relative axes (`EV_REL`)** — slot holds the *cumulative sum of
+  deltas* since construction (or last consume). Use for mouse motion,
+  scroll wheel.
+
+All queries are lock-free atomic loads.
 
 ```julia
+# Joystick / gamepad: read absolute axis state at any rate
 t = AxisTracker("/dev/input/event10")
 @show axis_codes(t)
 @show axis(t, ABS_X)
 @show axis_values(t)
+close(t)
+```
+
+```julia
+# Mouse: accumulate deltas, consume per frame
+t = AxisTracker("/dev/input/event5")
+while !done
+    dx = consume_rel!(t, REL_X)
+    dy = consume_rel!(t, REL_Y)
+    move_camera(dx, dy)
+    sleep(1/60)
+end
 close(t)
 ```
 
@@ -33,13 +52,23 @@ AxisTracker(::EvdevDevice)
 AxisTracker(::AbstractString)
 ```
 
-## Queries
+## Absolute-axis queries
 
 ```@docs
 axis
 axis_values
 axis_range
 axis_codes
+```
+
+## Relative-axis queries
+
+```@docs
+rel
+rel_values
+rel_codes
+consume_rel!
+consume_rel_values!
 ```
 
 ## Lifecycle

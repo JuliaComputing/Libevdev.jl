@@ -15,8 +15,9 @@ include("parse_event_codes.jl")
 # precompile-time check below verifies each one was emitted by the
 # parser; any failure surfaces at module load with the exact missing
 # names, rather than at first call against a stale ABI literal.
-const _REQUIRED_KERNEL_CONSTANTS = (:EV_SYN, :EV_ABS, :SYN_REPORT,
-                                    :SYN_DROPPED, :ABS_MAX)
+const _REQUIRED_KERNEL_CONSTANTS = (:EV_SYN, :EV_ABS, :EV_REL,
+                                    :SYN_REPORT, :SYN_DROPPED,
+                                    :ABS_MAX, :REL_MAX)
 
 let paths = _find_kernel_headers()
     defined = Symbol[]
@@ -62,6 +63,8 @@ export EvdevDevice, UinputDevice, InputEvent, EvdevError,
        set_vendor_id!, set_product_id!, set_bustype!, set_version!,
        enable_event!, disable_event!, enable_property!, disable_property!,
        set_abs_info!,
-       AxisTracker, AxisRange, axis, axis_values, axis_range, axis_codes
+       AxisTracker, AxisRange,
+       axis, axis_values, axis_range, axis_codes,
+       rel, rel_values, rel_codes, consume_rel!, consume_rel_values!
 
 end # module Libevdev
