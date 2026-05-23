@@ -3,6 +3,13 @@ module Libevdev
 include("LibevdevRaw.jl")
 using .LibevdevRaw
 
+# Library handle for ccalls in the wrapper layer. Imported under an
+# unambiguous name because both `LibevdevRaw.libevdev` (the opaque
+# struct type) and `libevdev_jll.libevdev` (the .so path) exist in
+# different scopes — a bare `libevdev` symbol is the wrong one in
+# either direction.
+using libevdev_jll: libevdev as _libevdev_so
+
 # Parse the kernel input headers at precompile time and define matching
 # `const` bindings (EV_*, KEY_*, BTN_*, ABS_*, FF_*, MT_TOOL_*, BUS_*,
 # ID_*, ...) directly in this module. `include_dependency` makes Julia

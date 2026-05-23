@@ -60,7 +60,7 @@ The underlying `/dev/uinput` fd is opened and managed by libevdev
 function UinputDevice(template::EvdevDevice)
     ref = Ref{Ptr{LibevdevRaw.libevdev_uinput}}(C_NULL)
     rc = lock(template.lock) do
-        ccall((:libevdev_uinput_create_from_device, LibevdevRaw.libevdev),
+        ccall((:libevdev_uinput_create_from_device, _libevdev_so),
               Cint,
               (Ptr{LibevdevRaw.libevdev}, Cint, Ptr{Ptr{LibevdevRaw.libevdev_uinput}}),
               template, Cint(LibevdevRaw.LIBEVDEV_UINPUT_OPEN_MANAGED), ref)
@@ -90,7 +90,7 @@ function Base.close(u::UinputDevice)
     p = u.ptr
     u.ptr = C_NULL
     if p != C_NULL
-        ccall((:libevdev_uinput_destroy, LibevdevRaw.libevdev),
+        ccall((:libevdev_uinput_destroy, _libevdev_so),
               Cvoid, (Ptr{LibevdevRaw.libevdev_uinput},), p)
     end
     return nothing
@@ -135,7 +135,7 @@ a key press) must end with a `syn` call to be observed.
 """
 function write_event(u::UinputDevice, type::Integer, code::Integer, value::Integer)
     lock(u.lock) do
-        rc = ccall((:libevdev_uinput_write_event, LibevdevRaw.libevdev),
+        rc = ccall((:libevdev_uinput_write_event, _libevdev_so),
                    Cint,
                    (Ptr{LibevdevRaw.libevdev_uinput}, Cuint, Cuint, Cint),
                    u, UInt32(type), UInt32(code), Int32(value))
@@ -174,7 +174,7 @@ it (older kernels or sysfs not mounted).
 """
 function syspath(u::UinputDevice)
     p = lock(u.lock) do
-        ccall((:libevdev_uinput_get_syspath, LibevdevRaw.libevdev),
+        ccall((:libevdev_uinput_get_syspath, _libevdev_so),
               Ptr{Cchar}, (Ptr{LibevdevRaw.libevdev_uinput},), u)
     end
     return p == C_NULL ? nothing : unsafe_string(p)
@@ -192,7 +192,7 @@ determine it.
 """
 function devnode(u::UinputDevice)
     p = lock(u.lock) do
-        ccall((:libevdev_uinput_get_devnode, LibevdevRaw.libevdev),
+        ccall((:libevdev_uinput_get_devnode, _libevdev_so),
               Ptr{Cchar}, (Ptr{LibevdevRaw.libevdev_uinput},), u)
     end
     return p == C_NULL ? nothing : unsafe_string(p)

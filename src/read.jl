@@ -45,7 +45,7 @@ function read_event(dev::EvdevDevice; block::Bool=true)
     while true
         isopen(dev) || return nothing
         status = lock(dev.lock) do
-            ccall((:libevdev_next_event, LibevdevRaw.libevdev),
+            ccall((:libevdev_next_event, _libevdev_so),
                   Cint, (Ptr{LibevdevRaw.libevdev}, Cuint, Ptr{InputEvent}),
                   dev, UInt32(LibevdevRaw.LIBEVDEV_READ_FLAG_NORMAL), ev_ref)
         end
@@ -129,7 +129,7 @@ function Base.iterate(it::EventIterator, state::Symbol=:normal)
             while true
                 isopen(dev) || return nothing
                 status = lock(dev.lock) do
-                    ccall((:libevdev_next_event, LibevdevRaw.libevdev),
+                    ccall((:libevdev_next_event, _libevdev_so),
                           Cint, (Ptr{LibevdevRaw.libevdev}, Cuint, Ptr{InputEvent}),
                           dev, UInt32(LibevdevRaw.LIBEVDEV_READ_FLAG_SYNC), ev_ref)
                 end

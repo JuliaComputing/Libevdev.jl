@@ -192,7 +192,7 @@ function _pump_axes(t::AxisTracker)
                            UInt32(LibevdevRaw.LIBEVDEV_READ_FLAG_NORMAL)
         status = try
             lock(dev.lock) do
-                ccall((:libevdev_next_event, LibevdevRaw.libevdev),
+                ccall((:libevdev_next_event, _libevdev_so),
                       Cint,
                       (Ptr{LibevdevRaw.libevdev}, Cuint, Ptr{InputEvent}),
                       dev, flag, ev_ref)
