@@ -65,6 +65,7 @@ export EvdevDevice, UinputDevice, InputEvent, EvdevError,
        set_abs_info!,
        AxisTracker, AxisRange,
        axis, axis_values, axis_range, axis_codes,
-       rel, rel_values, rel_codes, consume_rel!, consume_rel_values!
+       rel, rel_values, rel_codes, consume_rel!, consume_rel_values!,
+       tracker_status
 
 end # module Libevdev

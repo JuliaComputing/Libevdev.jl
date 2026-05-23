@@ -188,8 +188,12 @@ function _pump_axes(t::AxisTracker)
                       (Ptr{LibevdevRaw.libevdev}, Cuint, Ptr{InputEvent}),
                       dev, flag, ev_ref)
             end
-        catch
-            # Device closed mid-read or another terminal condition.
+        catch e
+            if t.stopping[] || !isopen(dev)
+                @debug "AxisTracker pump exiting: device closed during read"
+            else
+                @warn "AxisTracker pump exiting due to unexpected exception" exception=(e, catch_backtrace())
+            end
             break
         end
         if status == Int(LibevdevRaw.LIBEVDEV_READ_STATUS_SUCCESS)
@@ -209,7 +213,7 @@ function _pump_axes(t::AxisTracker)
                 # Next iteration re-checks `stopping`/`isopen`.
             end
         else
-            @debug "AxisTracker pump: libevdev_next_event error" status
+            @warn "AxisTracker pump exiting: libevdev_next_event returned unexpected status" status sync_mode
             break
         end
     end
@@ -422,4 +426,39 @@ function consume_rel_values!(t::AxisTracker)
         out[code] = Threads.atomic_xchg!(slot, Int32(0))
     end
     return out
+end
+
+"""
+    tracker_status(t::AxisTracker) -> NamedTuple
+
+Diagnostic snapshot of the tracker's internal state. Useful when
+`axis`/`rel` queries return stale values — surfaces whether the
+background pump is still running, which axes were discovered, and
+the captured pump-task exception if the pump exited.
+
+# Returns
+A `NamedTuple` with fields:
+- `running::Bool` — whether the pump task is still alive.
+- `task_exception` — `nothing` if the task is running or exited
+  cleanly, otherwise the exception that killed it.
+- `abs_codes::Vector{UInt16}` — `ABS_*` codes discovered at construction.
+- `rel_codes::Vector{UInt16}` — `REL_*` codes discovered at construction.
+- `closed::Bool` — whether `close(t)` has been called.
+"""
+function tracker_status(t::AxisTracker)
+    running = t.task !== nothing && !istaskdone(t.task)
+    task_exception = nothing
+    if t.task !== nothing && istaskdone(t.task) && !t.closed
+        # Pump exited but we haven't been closed — likely failed.
+        try
+            wait(t.task)
+        catch e
+            task_exception = e
+        end
+    end
+    (running        = running,
+     task_exception = task_exception,
+     abs_codes      = sort!(collect(keys(t.abs_values))),
+     rel_codes      = sort!(collect(keys(t.rel_values))),
+     closed         = t.closed)
 end
